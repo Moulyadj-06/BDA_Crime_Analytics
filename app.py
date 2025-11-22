@@ -12,9 +12,91 @@ import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
 from prophet import Prophet
+from openai import OpenAI
+import groq
+import datetime
+from backend.chatbot import get_chat_response
 
 
 st.set_page_config(page_title="Crime Dashboard Chatbot", page_icon="🤖")
+
+if "chat_started" not in st.session_state:
+    st.session_state.chat_started = False
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+start_chat = st.sidebar.button("Start Crime AI Assistant")
+
+if start_chat:
+    st.session_state.chat_started = True
+
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": "👋 Hello! I am Crime AI Assistant. I analyze crime trends, hotspots, and patterns.\nAsk me anything!"
+    })
+
+
+st.markdown("""
+    <style>
+        #chatbot-btn {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            background-color: #4CAF50;
+            border-radius: 50%;
+            width: 65px;
+            height: 65px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 9999;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
+            font-size: 30px;
+        }
+        #chat-popup {
+            position: fixed;
+            bottom: 120px;
+            right: 40px;
+            width: 350px;
+            height: 450px;
+            background: white;
+            border-radius: 20px;
+            padding: 10px;
+            display: none;
+            z-index: 9999;
+            padding: 10px;
+            box-shadow: 0px 4px 15px rgba(0,0,0,0.4);
+        }
+    </style>
+
+    <div id="chatbot-btn">🤖</div>
+
+    <div id="chat-popup">
+        <h4>AI Crime Assistant</h4>
+        <p style="font-size:14px; margin-top:-10px;">Ask me anything about crime trends, predictions, hotspots, prevention, etc.</p>
+        <div id="chat-container"></div>
+    </div>
+
+    <script>
+        const btn = document.getElementById("chatbot-btn");
+        const popup = document.getElementById("chat-popup");
+
+        btn.onclick = function() {
+            popup.style.display = popup.style.display === "block" ? "none" : "block";
+        }
+    </script>
+""", unsafe_allow_html=True)
+
+# -----------------------
+# Load API Keys from secrets.toml
+# -----------------------
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
+
+
 # -----------------------
 # 1. Load Dataset
 # -----------------------
@@ -759,53 +841,25 @@ if st.button("📊 Generate PPT Report (All Cities)"):
             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
         )
 
+if st.session_state.chat_started:
 
-# -----------------------
-# 11. stremlit chatbot
-# -----------------------
+    st.subheader("💬 Crime AI Assistant")
 
-import streamlit as st
-from datetime import datetime
+    # Show past chat
+    for msg in st.session_state.messages:
+        if msg["role"] == "assistant":
+            st.write("🤖:", msg["content"])
+        else:
+            st.write("🧑‍💻:", msg["content"])
 
+    # User input
+    user_query = st.text_input("Your question:")
 
+    if st.button("Send"):
+        if user_query.strip():
+            st.session_state.messages.append({"role": "user", "content": user_query})
 
-st.title("🤖 Crime Analytics Chatbot")
-st.markdown("Ask questions about crime data, trends, or insights.")
+            ai_answer = get_chat_response(user_query)
+            st.session_state.messages.append({"role": "assistant", "content": ai_answer})
 
-# Initialize chat history
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-
-# Chat input
-user_input = st.text_input("Type your question here...", key="input")
-
-# Function to add messages to chat
-def add_message(role, content):
-    st.session_state.messages.append({"role": role, "content": content})
-
-# Static bot response rules
-def get_bot_response(user_text):
-    user_text = user_text.lower()
-    if "severity" in user_text:
-        return "The Severity Index ranges from 1 (low) to 10 (high). It measures crime impact based on weapon, domain, victim age, time, and location."
-    elif "cluster" in user_text:
-        return "Crimes are grouped into clusters using KMeans based on features like city, hour, victim age, and crime code."
-    elif "forecast" in user_text or "trend" in user_text:
-        return "You can predict crime trends using time series models like Prophet for better resource planning."
-    elif "police" in user_text:
-        return "Police deployment is influenced by crime severity, type, and area crime trends."
-    else:
-        return "I can help you with crime severity, clustering, police deployment, and trend analysis. Could you be more specific?"
-
-# When user submits input
-if user_input:
-    bot_response = get_bot_response(user_input)
-    add_message("bot", bot_response)
-
-# Display chat history (latest on top)
-for chat in reversed(st.session_state.messages):
-    st.markdown(f"**Bot:** {chat['content']}")
-
-
-
-
+            st.experimental_rerun()
