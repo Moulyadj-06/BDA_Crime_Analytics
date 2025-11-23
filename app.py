@@ -16,6 +16,8 @@ from openai import OpenAI
 import groq
 import datetime
 from backend.chatbot import get_chat_response
+import PyPDF2
+import docx
 
 
 st.set_page_config(page_title="Crime Dashboard Chatbot", page_icon="🤖")
@@ -25,8 +27,31 @@ if "chat_started" not in st.session_state:
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+    
+if "show_chat" not in st.session_state:
+    st.session_state.show_chat = False
 
 start_chat = st.sidebar.button("Start Crime AI Assistant")
+
+st.markdown("""
+<style>
+div.stButton > button:first-child {
+    background-color: #ff4b4b;
+    color: white;
+    border-radius: 10px;
+    height: 45px;
+    border: 2px solid white;
+    font-size: 17px;
+    font-weight: 600;
+    box-shadow: 0px 0px 12px rgba(255, 75, 75, 0.8);
+    transition: 0.3s;
+}
+div.stButton > button:first-child:hover {
+    background-color: #ff2525;
+    box-shadow: 0px 0px 20px rgba(255, 0, 0, 1);
+}
+</style>
+""", unsafe_allow_html=True)
 
 if start_chat:
     st.session_state.chat_started = True
@@ -37,57 +62,78 @@ if start_chat:
     })
 
 
-st.markdown("""
+# ----------------------------
+# FILE READING FUNCTIONS
+# ----------------------------
+def read_pdf(file):
+    pdf_reader = PyPDF2.PdfReader(file)
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text() or ""
+    return text
+
+def read_docx(file):
+    doc = docx.Document(file)
+    text = "\n".join([para.text for para in doc.paragraphs])
+    return text
+
+
+# ----------------------------
+# POPUP CHAT WINDOW (HTML + CSS)
+# ----------------------------
+if st.session_state.show_chat:
+    st.markdown("""
     <style>
-        #chatbot-btn {
-            position: fixed;
-            bottom: 40px;
-            right: 40px;
-            background-color: #4CAF50;
-            border-radius: 50%;
-            width: 65px;
-            height: 65px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            z-index: 9999;
-            box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
-            font-size: 30px;
-        }
         #chat-popup {
             position: fixed;
             bottom: 120px;
             right: 40px;
-            width: 350px;
-            height: 450px;
+            width: 360px;
+            height: 470px;
             background: white;
-            border-radius: 20px;
-            padding: 10px;
-            display: none;
+            border-radius: 18px;
+            padding: 15px;
             z-index: 9999;
-            padding: 10px;
-            box-shadow: 0px 4px 15px rgba(0,0,0,0.4);
+            box-shadow: 0px 4px 18px rgba(0,0,0,0.45);
+            overflow-y: auto;
         }
     </style>
 
-    <div id="chatbot-btn">🤖</div>
-
     <div id="chat-popup">
         <h4>AI Crime Assistant</h4>
-        <p style="font-size:14px; margin-top:-10px;">Ask me anything about crime trends, predictions, hotspots, prevention, etc.</p>
-        <div id="chat-container"></div>
+        <p style="font-size:14px;">Ask me anything about crime or upload a document.</p>
     </div>
+    """, unsafe_allow_html=True)
 
-    <script>
-        const btn = document.getElementById("chatbot-btn");
-        const popup = document.getElementById("chat-popup");
 
-        btn.onclick = function() {
-            popup.style.display = popup.style.display === "block" ? "none" : "block";
-        }
-    </script>
-""", unsafe_allow_html=True)
+# ----------------------------
+# FILE UPLOAD + Q&A SECTION
+# ----------------------------
+uploaded_file = st.file_uploader("📄 Upload PDF or Word File", type=["pdf", "docx"])
+
+file_text = ""
+
+if uploaded_file is not None:
+    st.info("Processing file...")
+
+    if uploaded_file.type == "application/pdf":
+        file_text = read_pdf(uploaded_file)
+    else:
+        file_text = read_docx(uploaded_file)
+
+    st.success("File uploaded successfully!")
+
+    # Ask questions about file
+    question = st.text_input("Ask a question about the uploaded document:")
+
+    if st.button("Ask AI") and question.strip():
+        # Combine document content + user question
+        user_input = f"Document Content:\n{file_text}\n\nQuestion: {question}"
+        
+        ai_response = get_chat_response(user_input)  # call your backend function
+
+        st.write("### 🔍 AI Answer:")
+        st.write(ai_response)
 
 # -----------------------
 # Load API Keys from secrets.toml
