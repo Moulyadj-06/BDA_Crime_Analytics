@@ -18,9 +18,89 @@ import datetime
 from backend.chatbot import get_chat_response
 import PyPDF2
 import docx
+import base64
+
 
 
 st.set_page_config(page_title="Crime Dashboard", page_icon="🤖")
+
+st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] {
+    background: linear-gradient(270deg, #000000, #4B0000, #660000, #000000);
+    background-size: 800% 800%;
+    animation: moveGradient 15s ease infinite;
+}
+
+@keyframes moveGradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown(
+    """
+    <style>
+    [data-testid="stAppViewContainer"] {
+        background-color: #000000;
+        color: #ffffff;  /* optional: make text white */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+def add_crime_tape():
+    tape_path = "images/crime_tape.jpeg"
+
+    # Load and encode tape image
+    with open(tape_path, "rb") as f:
+        tape_base64 = base64.b64encode(f.read()).decode()
+
+    st.markdown(f"""
+        <style>
+
+        /* ---- Animation (slight wiggle effect) ---- */
+        @keyframes tapeMove {{
+            0%   {{ transform: rotate(-35deg) translateX(0px); }}
+            50%  {{ transform: rotate(-35deg) translateX(10px); }}
+            100% {{ transform: rotate(-35deg) translateX(0px); }}
+        }}
+
+        .crime-tape-top {{
+            position: fixed;
+            top: 0;
+            left: 285px;
+            width: 200px;
+            z-index: 9999;
+            opacity: 0.9;
+            transform: rotate(-25deg) skewX(-10deg);
+            animation: tapeMove 3s ease-in-out infinite;
+            pointer-events: none;
+        }}
+
+        .crime-tape-bottom {{
+            position: fixed;
+            bottom: 0;
+            right: -30px;
+            width: 175px;
+            z-index: 9999;
+            opacity: 0.9;
+            transform: rotate(25deg) skewX(10deg);
+            animation: tapeMove 3s ease-in-out infinite;
+            pointer-events: none;
+        }}
+
+        </style>
+
+        <img src="data:image/jpeg;base64,{tape_base64}" class="crime-tape-top">
+        <img src="data:image/jpeg;base64,{tape_base64}" class="crime-tape-bottom">
+    """, unsafe_allow_html=True)
+
+add_crime_tape()
+
 
 if "chat_started" not in st.session_state:
     st.session_state.chat_started = False
@@ -551,16 +631,6 @@ if len(filtered_data) > 0:
             st.plotly_chart(fig_forecast)
         else:
             st.info("Not enough monthly history to run Prophet (need >=12 months).")
-
-    # # 3. Heatmap Hour vs Day
-    # if 'Date of Occurrence' in filtered_data.columns:
-    #     if 'Day' not in filtered_data.columns:
-    #         filtered_data['Day'] = filtered_data['Date of Occurrence'].dt.day
-    #     st.subheader("Crime Heatmap (Hour vs Day of Month)")
-    #     heatmap_data = filtered_data.pivot_table(index="Hour", columns="Day", values="Crime Domain", aggfunc="count", fill_value=0)
-    #     fig8, ax = plt.subplots(figsize=(12, 6))
-    #     sns.heatmap(heatmap_data, cmap="Reds", ax=ax)
-    #     st.pyplot(fig8)
 
     # 4. Top 10 Crime Types
     st.subheader("Top 10 Crime Types")
