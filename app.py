@@ -20,7 +20,7 @@ import PyPDF2
 import docx
 
 
-st.set_page_config(page_title="Crime Dashboard Chatbot", page_icon="🤖")
+st.set_page_config(page_title="Crime Dashboard", page_icon="🤖")
 
 if "chat_started" not in st.session_state:
     st.session_state.chat_started = False
@@ -62,79 +62,114 @@ if start_chat:
     })
 
 
-# ----------------------------
-# FILE READING FUNCTIONS
-# ----------------------------
-def read_pdf(file):
-    pdf_reader = PyPDF2.PdfReader(file)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text() or ""
-    return text
+if "open_modal" not in st.session_state:
+    st.session_state.open_modal = False
 
-def read_docx(file):
-    doc = docx.Document(file)
-    text = "\n".join([para.text for para in doc.paragraphs])
-    return text
+if "file_text" not in st.session_state:
+    st.session_state.file_text = ""
+
+# Sidebar Button to open popup
+with st.sidebar:
+    if st.button("📄 Upload Crime Report"):
+        st.session_state.open_modal = True
 
 
-# ----------------------------
-# POPUP CHAT WINDOW (HTML + CSS)
-# ----------------------------
-if st.session_state.show_chat:
+# --------------------------------------------------------
+# HTML POPUP + CSS (empty box)
+# --------------------------------------------------------
+if st.session_state.open_modal:
+
     st.markdown("""
-    <style>
-        #chat-popup {
+        <style>
+        #crime-modal {
             position: fixed;
-            bottom: 120px;
-            right: 40px;
-            width: 360px;
-            height: 470px;
-            background: white;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 480px;
+            background: #111;
+            color: white;
+            padding: 25px;
             border-radius: 18px;
-            padding: 15px;
-            z-index: 9999;
-            box-shadow: 0px 4px 18px rgba(0,0,0,0.45);
-            overflow-y: auto;
+            z-index: 999999;
+            box-shadow: 0px 4px 20px rgba(0,0,0,0.6);
         }
-    </style>
 
-    <div id="chat-popup">
-        <h4>AI Crime Assistant</h4>
-        <p style="font-size:14px;">Ask me anything about crime or upload a document.</p>
-    </div>
+        #close-modal {
+            position: absolute;
+            top: 12px;
+            right: 18px;
+            font-size: 22px;
+            color: #ff4d4d;
+            cursor: pointer;
+        }
+
+        /* This is the magic part — attach Streamlit widgets INSIDE popup */
+        .modal-container {
+            position: fixed;
+            top: 58%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 430px;
+            z-index: 1000000;
+            padding: 10px;
+            background: transparent;
+        }
+        </style>
+
+        <script>
+            document.getElementById("close-modal")
+                .onclick = function() {
+                    window.parent.postMessage({type: "close_popup"}, "*");
+                };
+        </script>
     """, unsafe_allow_html=True)
 
+    # LISTEN TO JS CLOSE EVENT
+    msg = st.experimental_get_query_params()
+    if "close_popup" in msg:
+        st.session_state.open_modal = False
 
-# ----------------------------
-# FILE UPLOAD + Q&A SECTION
-# ----------------------------
-uploaded_file = st.file_uploader("📄 Upload PDF or Word File", type=["pdf", "docx"])
 
-file_text = ""
+    # --------------------------------------------------------
+    # NOW PLACE STREAMLIT WIDGETS INSIDE POPUP USING CONTAINER
+    # --------------------------------------------------------
+    with st.container():
+        st.markdown('<div class="modal-container">', unsafe_allow_html=True)
 
-if uploaded_file is not None:
-    st.info("Processing file...")
+        # File Upload
+        uploaded_file = st.file_uploader("Choose a PDF or DOCX", type=["pdf", "docx"])
 
-    if uploaded_file.type == "application/pdf":
-        file_text = read_pdf(uploaded_file)
-    else:
-        file_text = read_docx(uploaded_file)
+        if uploaded_file:
+            if uploaded_file.type == "application/pdf":
+                pdf_reader = PyPDF2.PdfReader(uploaded_file)
+                st.session_state.file_text = "".join(
+                    [page.extract_text() or "" for page in pdf_reader.pages]
+                )
+            else:
+                doc_file = docx.Document(uploaded_file)
+                st.session_state.file_text = "\n".join([p.text for p in doc_file.paragraphs])
 
-    st.success("File uploaded successfully!")
+            st.success("File uploaded!")
 
-    # Ask questions about file
-    question = st.text_input("Ask a question about the uploaded document:")
+            # Question Box
+            question = st.text_input("Ask a question:")
 
-    if st.button("Ask AI") and question.strip():
-        # Combine document content + user question
-        user_input = f"Document Content:\n{file_text}\n\nQuestion: {question}"
+            # Ask AI Button
+            if st.button("Ask AI"):
+                if question.strip():
+                    final_prompt = (
+                        f"Document Content:\n{st.session_state.file_text}\n\n"
+                        f"Question: {question}"
+                    )
+                    ai_answer = get_chat_response(final_prompt)
+                    st.write("### 🔍 AI Answer:")
+                    st.write(ai_answer)
+
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        ai_response = get_chat_response(user_input)  # call your backend function
-
-        st.write("### 🔍 AI Answer:")
-        st.write(ai_response)
-
+        
+        
 # -----------------------
 # Load API Keys from secrets.toml
 # -----------------------
